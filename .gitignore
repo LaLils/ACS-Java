@@ -1,0 +1,13 @@
+# Ignorer les fichiers ZIP
+*.zip
+
+# Ignorer les fichiers de build
+target/
+
+# Ignorer les fichiers de configuration Eclipse
+.classpath
+.project
+.settings/
+
+# Ignorer les environnements ou fichiers temporaires
+*.log
