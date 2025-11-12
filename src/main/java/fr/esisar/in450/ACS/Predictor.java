@@ -1,70 +1,103 @@
 package fr.esisar.in450.ACS;
 
+import org.deeplearning4j.nn.graph.ComputationGraph;
+import org.datavec.image.loader.NativeImageLoader;
+import org.nd4j.linalg.api.ndarray.INDArray;
+import org.nd4j.linalg.dataset.api.preprocessor.ImagePreProcessingScaler;
+import org.deeplearning4j.util.ModelSerializer;
+
+import java.io.File;
+import java.util.List;
+
+/**
+ * Classe utilitaire chargée de faire des prédictions à partir d’un modèle ResNet sauvegardé. 
+ * Le {@code Predictor} effectue le pipeline complet : -
+ * - Chargement du modèle depuis un fichier ZIP 
+ * - Chargement et initialisation des
+ * labels 
+ * - Prétraitement d’une image donnée (redimensionnement + normalisation)
+ * - Exécution de la prédiction via le modèle 
+ * - Affichage du résultat (classe prédite + confiance + top 3)
+ */
 public class Predictor {
-    
-    private CandyTypeClassifier typeClassifier;
-    private ColorDetector colorDetector;
-    
-    public Predictor() {
-        this.typeClassifier = new CandyTypeClassifier();
-        this.colorDetector = new ColorDetector();
-    }
-    
-    /**
-     * Charge le modèle de classification
-     */
-    public void loadModel(String modelPath) throws Exception {
-        typeClassifier.loadModel(modelPath);
-    }
-    
-    /**
-     * Prédit le type et la couleur d'un bonbon
-     * @param imagePath Chemin vers l'image
-     * @return Tableau [type, couleur, confiance]
-     */
-    public String[] predict(String imagePath) throws Exception {
-        System.out.println("Prédiction du type...");
-        String[] typeResult = typeClassifier.predict(imagePath);
-        String candyType = typeResult[0];
-        String confidence = typeResult[1];
-        
-        System.out.println("Détection de la couleur...");
-        String color = colorDetector.detectColorWithHistogram(imagePath);
-        
-        // Gestion des couleurs spéciales
-        color = adjustColorForType(candyType, color);
-        
-        return new String[] {candyType, color, confidence};
-    }
-    
-    /**
-     * Ajuste la couleur en fonction du type (pour Fraise et Oeuf)
-     */
-    private String adjustColorForType(String type, String detectedColor) {
-        if (type.equals("Fraise")) {
-            return "Fraise"; // Une seule couleur possible
-        } else if (type.equals("Oeuf")) {
-            return "Oeuf"; // Une seule couleur possible
-        }
-        return detectedColor;
-    }
-    
-    /**
-     * Prédit plusieurs bonbons (version batch)
-     */
-    public void predictBatch(String[] imagePaths) throws Exception {
-        System.out.println("=== Prédiction en lot ===\n");
-        
-        for (int i = 0; i < imagePaths.length; i++) {
-            System.out.println("Image " + (i + 1) + "/" + imagePaths.length + ": " + imagePaths[i]);
-            try {
-                String[] result = predict(imagePaths[i]);
-                System.out.println("  Type: " + result[0]);
-                System.out.println("  Couleur: " + result[1]);
-                System.out.println("  Confiance: " + result[2] + "%\n");
-            } catch (Exception e) {
-                System.err.println("  Erreur: " + e.getMessage() + "\n");
-            }
-        }
-    }
+
+	/**
+	 * Charge un modèle sauvegardé et prédit la classe d’une image donnée.
+	 *
+	 * @param modelPath chemin vers le modèle sauvegardé (fichier .zip)
+	 * @param imageFile image à analyser
+	 * @throws Exception si le modèle ou l’image ne peuvent pas être chargés
+	 */
+	public static void predict(String modelPath, File imageFile) throws Exception {
+		// === 1. Chargement du modèle ===
+		System.out.println("Chargement du modèle...");
+		ComputationGraph model = ModelSerializer.restoreComputationGraph(modelPath);
+
+		// === 2. Chargement des labels sauvegardés ===
+		System.out.println("Chargement des labels...");
+		List<String> labels = ResNetModel.loadLabels(modelPath);
+		Utils.initLabels(labels); // Initialisation de la classe utilitaire avec les labels
+
+		// === 3. Définition des paramètres d’entrée ===
+		int height = 224;
+		int width = 224;
+		int channels = 3;
+
+		// === 4. Chargement et prétraitement de l’image ===
+		System.out.println("Prétraitement de l'image...");
+		NativeImageLoader loader = new NativeImageLoader(height, width, channels);
+		INDArray image = loader.asMatrix(imageFile); // Convertit l’image en matrice ND4J
+		ImagePreProcessingScaler scaler = new ImagePreProcessingScaler(0, 1); // Normalisation : échelle des pixels
+																				// entre [0, 1]
+		scaler.transform(image);
+
+		// === 5. Prédiction ===
+		System.out.println("Prédiction en cours...\n");
+		INDArray output = model.outputSingle(image); // Sortie du modèle : vecteur de probabilités pour chaque classe
+		int predicted = output.argMax(1).getInt(0); // Index de la classe ayant la plus forte probabilité
+		double confidence = output.getDouble(0, predicted); // Confiance associée à cette classe (probabilité)
+
+		// === 6. Interprétation du résultat ===
+		String predictedLabel = Utils.getClassName(predicted);
+		String[] parts = Utils.parseLabel(predictedLabel);
+		String type = parts[0];
+		String couleur = parts[1];
+
+		// === 7. Affichage formaté du résultat principal ===
+		System.out.println("╔════════════════════════════════════════╗");
+		System.out.println("║            RÉSULTAT                    ║");
+		System.out.println("╚════════════════════════════════════════╝\n");
+		System.out.println("  🍬 Type      : " + type.toUpperCase());
+		System.out.println("  🎨 Couleur   : " + couleur.toUpperCase());
+		System.out.println("  📊 Confiance : " + String.format("%.2f%%", confidence * 100));
+		System.out.println();
+		System.out.println("  Label complet : " + predictedLabel);
+		System.out.println("  Index classe  : " + predicted);
+		System.out.println();
+
+		// === 8. Affichage des N meilleures classes ===
+		System.out.println("═══ Top 3 des prédictions ═══");
+		displayTopPredictions(output, labels, 3);
+	}
+
+	/**
+	 * Affiche les {@code topN} meilleures prédictions à partir de la sortie du
+	 * modèle. *
+	 * 
+	 * @param output sortie du modèle (vecteur de probabilités)
+	 * @param labels liste des labels correspondant aux classes
+	 * @param topN   nombre de prédictions à afficher
+	 */
+	private static void displayTopPredictions(INDArray output, List<String> labels, int topN) {
+		INDArray outputCopy = output.dup();
+		for (int i = 0; i < Math.min(topN, labels.size()); i++) {
+			int idx = outputCopy.argMax(1).getInt(0);
+			double conf = outputCopy.getDouble(0, idx);
+			String label = labels.get(idx);
+			String[] parts = Utils.parseLabel(label);
+			System.out.println(String.format("  %d. %s-%s : %.2f%%", (i + 1), parts[0], parts[1], conf * 100));
+			outputCopy.putScalar(new int[] { 0, idx }, -1.0);
+		}
+		System.out.println();
+	}
 }
