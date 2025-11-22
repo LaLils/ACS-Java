@@ -35,7 +35,7 @@ public class Predictor {
 
 		// === 2. Chargement des labels sauvegardés ===
 		System.out.println("Chargement des labels...");
-		List<String> labels = ResNetModel.loadLabels(modelPath);
+		List<String> labels = VGG16Model.loadLabels(modelPath);
 		Utils.initLabels(labels); // Initialisation de la classe utilitaire avec les labels
 
 		// === 3. Définition des paramètres d’entrée ===

@@ -77,7 +77,7 @@ public class Main {
 
         // === 3. Construction du modèle ===
         System.out.println("\n=== ÉTAPE 2 : Construction du modèle ===");
-        ComputationGraph model = ResNetModel.buildModel();
+        ComputationGraph model = VGG16Model.buildModel();
 
         // === 4. Ajout d’un listener ===
         // Permet de suivre la progression et d’afficher un score intermédiaire tous les 10 lots
@@ -117,7 +117,7 @@ public class Main {
 
         // === 7. Sauvegarde du modèle entraîné ===
         System.out.println("\n=== ÉTAPE 5 : Sauvegarde du modèle ===");
-        ResNetModel.saveModelWithLabels(model, MODEL_PATH, DataLoader.getLabels());
+        VGG16Model.saveModelWithLabels(model, MODEL_PATH, DataLoader.getLabels());
 
         // === Fin de l’entraînement ===
         System.out.println("\n╔════════════════════════════════════════╗");
