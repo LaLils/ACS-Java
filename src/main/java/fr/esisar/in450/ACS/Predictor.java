@@ -30,11 +30,10 @@ public class Predictor {
 	 */
 	public static void predict(String modelPath, File imageFile) throws Exception {
 		// === 1. Chargement du modèle ===
-		System.out.println("Chargement du modèle...");
+        System.out.println("Chargement du modèle: "+modelPath);
 		ComputationGraph model = ModelSerializer.restoreComputationGraph(modelPath);
 
 		// === 2. Chargement des labels sauvegardés ===
-		System.out.println("Chargement des labels...");
 		List<String> labels = VGG16Model.loadLabels(modelPath);
 		Utils.initLabels(labels); // Initialisation de la classe utilitaire avec les labels
 
@@ -59,25 +58,17 @@ public class Predictor {
 
 		// === 6. Interprétation du résultat ===
 		String predictedLabel = Utils.getClassName(predicted);
-		String[] parts = Utils.parseLabel(predictedLabel);
-		String type = parts[0];
-		String couleur = parts[1];
 
 		// === 7. Affichage formaté du résultat principal ===
-		System.out.println("╔════════════════════════════════════════╗");
-		System.out.println("║            RÉSULTAT                    ║");
-		System.out.println("╚════════════════════════════════════════╝\n");
-		System.out.println("  🍬 Type      : " + type.toUpperCase());
-		System.out.println("  🎨 Couleur   : " + couleur.toUpperCase());
-		System.out.println("  📊 Confiance : " + String.format("%.2f%%", confidence * 100));
-		System.out.println();
-		System.out.println("  Label complet : " + predictedLabel);
+		System.out.println("===== RÉSULTAT =====");
+		System.out.println("  Type de bonbon : " + predictedLabel);
 		System.out.println("  Index classe  : " + predicted);
+		System.out.println("  Confiance : " + String.format("%.2f%%", confidence * 100));
 		System.out.println();
 
 		// === 8. Affichage des N meilleures classes ===
-		System.out.println("═══ Top 3 des prédictions ═══");
-		displayTopPredictions(output, labels, 3);
+		System.out.println("    Top 5 des predictions");
+		displayTopPredictions(output, labels, 5);
 	}
 
 	/**
@@ -94,8 +85,7 @@ public class Predictor {
 			int idx = outputCopy.argMax(1).getInt(0);
 			double conf = outputCopy.getDouble(0, idx);
 			String label = labels.get(idx);
-			String[] parts = Utils.parseLabel(label);
-			System.out.println(String.format("  %d. %s-%s : %.2f%%", (i + 1), parts[0], parts[1], conf * 100));
+			System.out.println(String.format("    %d. %s : %.2f%%", (i + 1), label, conf * 100));
 			outputCopy.putScalar(new int[] { 0, idx }, -1.0);
 		}
 		System.out.println();
